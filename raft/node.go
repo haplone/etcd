@@ -58,6 +58,7 @@ type Ready struct {
 	// The current state of a Node to be saved to stable storage BEFORE
 	// Messages are sent.
 	// HardState will be equal to empty state if there is no update.
+	// 在发送信息前需要持久化的状态
 	pb.HardState
 
 	// ReadStates can be used for node to serve linearizable read requests locally
