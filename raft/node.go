@@ -69,6 +69,7 @@ type Ready struct {
 
 	// Entries specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.
+	// 通过raftLog.unstableEntries()读取的是raftLog.unstable.entries中的数据
 	Entries []pb.Entry
 
 	// Snapshot specifies the snapshot to be saved to stable storage.
