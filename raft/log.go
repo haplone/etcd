@@ -21,20 +21,28 @@ import (
 	pb "github.com/coreos/etcd/raft/raftpb"
 )
 
+// log status change flow ?:
+// client -> by wal -> unstable -> by followers replay
+// 		-> committed -> by state machine
+//		-> applied
 type raftLog struct {
 	// storage contains all stable entries since the last snapshot.
+	// 包含了上次snapshot之后所有持久化的日志
 	storage Storage
 
 	// unstable contains all unstable entries and snapshot.
 	// they will be saved into storage.
+	// 未提交的日志，包括snapshot
 	unstable unstable
 
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
+	// 已经在多数节点上持久化的最大日志号
 	committed uint64
 	// applied is the highest log position that the application has
 	// been instructed to apply to its state machine.
 	// Invariant: applied <= committed
+	// 在本节点已经应用到状态机的日志号
 	applied uint64
 
 	logger Logger

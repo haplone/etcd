@@ -28,14 +28,18 @@ func main() {
 	join := flag.Bool("join", false, "join an existing cluster")
 	flag.Parse()
 
+	// 新建proposeC管道，用来将用户层数据发送给RAFT协议层
 	proposeC := make(chan string)
 	defer close(proposeC)
+	// 新建confChangeC管道，用来将配置修改信息发送给RAFT协议层
 	confChangeC := make(chan raftpb.ConfChange)
 	defer close(confChangeC)
 
 	// raft provides a commit stream for the proposals from the http api
 	var kvs *kvstore
 	getSnapshot := func() ([]byte, error) { return kvs.getSnapshot() }
+	// raft.go 返回结构体会作为底层RAFT协议与上层应用的中间结合体
+	// 同时会返回commitC errorC管道，用来接收请求和错误信息
 	commitC, errorC, snapshotterReady := newRaftNode(*id, strings.Split(*cluster, ","), *join, getSnapshot, proposeC, confChangeC)
 
 	kvs = newKVStore(<-snapshotterReady, proposeC, commitC, errorC)

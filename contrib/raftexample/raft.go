@@ -36,6 +36,8 @@ import (
 )
 
 // A key-value stream backed by raft
+// http PUT -1-> kvStore.Propose -2-> proposeC
+//		 -3-> raft -4-> commitC -5-> map[string] string
 type raftNode struct {
 	proposeC    <-chan string            // proposed messages (k,v)
 	confChangeC <-chan raftpb.ConfChange // proposed cluster config changes
@@ -82,6 +84,7 @@ func newRaftNode(id int, peers []string, join bool, getSnapshot func() ([]byte, 
 	commitC := make(chan *string)
 	errorC := make(chan error)
 
+	// <<<1>>>新建raftNode对象，重点proposeC
 	rc := &raftNode{
 		proposeC:    proposeC,
 		confChangeC: confChangeC,
@@ -230,6 +233,7 @@ func (rc *raftNode) replayWAL() *wal.WAL {
 	if err != nil {
 		log.Fatalf("raftexample: failed to read WAL (%v)", err)
 	}
+	// 使用ETCD中的内存存储
 	rc.raftStorage = raft.NewMemoryStorage()
 	if snapshot != nil {
 		rc.raftStorage.ApplySnapshot(*snapshot)
@@ -256,15 +260,19 @@ func (rc *raftNode) writeError(err error) {
 }
 
 func (rc *raftNode) startRaft() {
+	// 如果snapshot目录不存在则创建
 	if !fileutil.Exist(rc.snapdir) {
 		if err := os.Mkdir(rc.snapdir, 0750); err != nil {
 			log.Fatalf("raftexample: cannot create dir for snapshot (%v)", err)
 		}
 	}
+	// snap/snapshotter.go 只是实例化一个对象，并设置其中的dir成员
 	rc.snapshotter = snap.New(rc.snapdir)
 	rc.snapshotterReady <- rc.snapshotter
 
+	// wal/util.go 判断WAL日志目录是否存在，用来确定是否是第一次启动
 	oldwal := wal.Exist(rc.waldir)
+	// raft.go 开始读取WAL日志，并赋值到raftNode.wal中
 	rc.wal = rc.replayWAL()
 
 	rpeers := make([]raft.Peer, len(rc.peers))
@@ -290,6 +298,7 @@ func (rc *raftNode) startRaft() {
 		rc.node = raft.StartNode(c, startPeers)
 	}
 
+	// 传输层的配置参数
 	rc.transport = &rafthttp.Transport{
 		ID:          types.ID(rc.id),
 		ClusterID:   0x1000,
@@ -307,6 +316,7 @@ func (rc *raftNode) startRaft() {
 	}
 
 	go rc.serveRaft()
+	// 真正的业务处理，在协程中监听用户请求、配置等命令
 	go rc.serveChannels()
 }
 
